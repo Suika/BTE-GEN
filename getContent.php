@@ -42,12 +42,8 @@ $author = $zeile['Auth_Name'];
 $editor = 'Simon';
 $translator = $zeile['Translator'];
 $title = $zeile['Ser_Name'];
-if (!empty($zeile['Book_Vol'])) {
-    $title .= " - Volume " . $zeile['Book_Vol'];
-}
-if (!empty($zeile['Book_Name'])) {
-    $title .= " - " . $zeile['Book_Name'];
-}
+$title .= (!empty($zeile['Book_Vol'])) ? " - Volume " . $zeile['Book_Vol'] : null ;
+$title .= (!empty($zeile['Book_Vol'])) ? " - " . $zeile['Book_Name'] : null ;
 $isbn = $zeile['ISBN'];
 $desc = $zeile['Description'];
 $date = date("Y-m-d");
@@ -398,7 +394,9 @@ function withIMG($homepage) {
 
     $homepage_arr = replaceIMG($homepage, FALSE);
 
-    $homepage = strstr(preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", $homepage_arr['homepage']), '<h1>');
+    $homepage = preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", $homepage_arr['homepage']);
+    preg_match_all('/<h([0-9]).*?>.*?<\/h[0-9]>/i', $homepage, $matches);
+    $homepage = strstr($homepage, '<h' . $matches[1][0] . '>');
 
     $toc_arr = getTOC($homepage);
 
@@ -584,7 +582,9 @@ function withoutIMG($homepage) {
             . '</body>' . "\n"
             . '</html>';
 
-    $homepage = strstr(preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", replaceIMG($homepage, TRUE)), '<h1>');
+    $homepage = preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", replaceIMG($homepage, TRUE));
+    preg_match_all('/<h([0-9]).*?>.*?<\/h[0-9]>/i', $homepage, $matches);
+    $homepage = strstr($homepage, '<h' . $matches[1][0] . '>');
 
     $toc_arr = getTOC($homepage);
 
