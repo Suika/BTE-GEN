@@ -10,6 +10,13 @@ $post_books = $_POST['books'];
 $post_img = $_POST['img'];
 $post_size = $_POST['size'];
 
+/*
+  $post_series = 7;
+  $post_books = "Boku_wa_Tomodachi_ga_Sukunai:Volume_07";
+  $post_img = "wi";
+  $post_size = "original";
+ */
+
 $db = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) or die('<p><font color=red>Fehler bei der Datenbankverbindung: ' . mysqli_connect_errno() . ': ' . mysqli_connect_error() . '</p>');
 
 $sql = "SELECT  Book_ID, 
@@ -42,13 +49,31 @@ $author = $zeile['Auth_Name'];
 $editor = 'Simon';
 $translator = $zeile['Translator'];
 $title = $zeile['Ser_Name'];
-$title .= (!empty($zeile['Book_Vol'])) ? " - Volume " . $zeile['Book_Vol'] : null ;
-$title .= (!empty($zeile['Book_Vol'])) ? " - " . $zeile['Book_Name'] : null ;
+$title .= (!empty($zeile['Book_Vol'])) ? " - Volume " . $zeile['Book_Vol'] : null;
+$title .= (!empty($zeile['Book_Name'])) ? " - " . $zeile['Book_Name'] : null;
 $isbn = $zeile['ISBN'];
 $desc = $zeile['Description'];
 $date = date("Y-m-d");
 $uuid = $zeile['UUID'];
 $uuidi = $zeile['UUIDI'];
+
+/*
+  if ($post_img == "wi") {
+  if ($post_size == "original"){
+  if (file_exists("epubi/" . $file . ".epub")){
+  sendFile("epubi/" . $file . ".epub", $title);
+  }
+  } else {
+  if (file_exists("epubi/resized/" . $post_size ."/" . $file . ".epub")){
+  sendFile("epubi/resized/" . $post_size ."/" . $file . ".epub", $title);
+  }
+  }
+  } elseif ($post_img == "ni") {
+  if (file_exists("epub/" . $file . ".epub")){
+  sendFile("epub/" . $file . ".epub", $title);
+  }
+  }
+ */
 
 $device = array('sgs2' => array('h' => 800, 'w' => 480),
     'iphone4s' => array('h' => 960, 'w' => 640),
@@ -100,10 +125,111 @@ $toci_start = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?><!DOCTYPE 
 
 $toc_end = "\n" . '</ncx>';
 
+$content_start = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>' . "\n"
+        . '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">' . "\n"
+        . '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">' . "\n";
+
+if (!empty($uuid))
+    $content_start .= '<dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:' . $uuidi . '</dc:identifier>' . "\n";
+
+if (!empty($title))
+    $content_start .= '<dc:title>' . $title . '</dc:title>' . "\n";
+
+if (!empty($illustrator))
+    $content_start .= '<dc:contributor opf:role="ill">' . $illustrator . '</dc:contributor>' . "\n";
+
+if (!empty($isbn))
+    $content_start .= '<dc:identifier opf:scheme="ISBN">' . $isbn . '</dc:identifier>' . "\n";
+
+if (!empty($author))
+    $content_start .= '<dc:creator opf:role="aut">' . $author . '</dc:creator>' . "\n";
+
+if (!empty($desc))
+    $content_start .= '<dc:description>' . $desc . '</dc:description>' . "\n";
+
+if (!empty($date))
+    $content_start .= '<dc:date opf:event="creation">' . $date . '</dc:date>' . "\n";
+
+$content_start .= '<dc:contributor opf:role="edt">Simon</dc:contributor>' . "\n";
+
+if (!empty($translator))
+    $content_start .= '<dc:contributor opf:file-as="' . $translator . '" opf:role="trl">' . $translator . '</dc:contributor>' . "\n";
+
+if (!empty($date))
+    $content_start .= '<dc:date opf:event="publication">' . $date . '</dc:date>' . "\n";
+
+$content_start .= '<dc:publisher>Baka-Tsuki</dc:publisher>' . "\n"
+        . '<dc:language>en</dc:language>' . "\n"
+        . '<dc:rights>All materials\' copyrights reserved by their respective authors and the associated publishers. Please respect their rights. Works will be deleted upon request by copyright holders.</dc:rights>' . "\n"
+        . '<meta content="Cover.jpg" name="cover" />' . "\n"
+        . '</metadata>' . "\n"
+        . '<manifest>' . "\n"
+        . '<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml" />' . "\n"
+        . '<item href="Text/Cover.xhtml" id="Cover.xhtml" media-type="application/xhtml+xml" />' . "\n"
+        . '<item href="Styles/stylesheet.css" id="stylesheet.css" media-type="text/css" />' . "\n"
+        . '<item href="Styles/page_styles.css" id="page_styles.css" media-type="text/css" />' . "\n"
+        . '<item href="Text/Body.xhtml" id="Body.xhtml" media-type="application/xhtml+xml" />' . "\n";
+
+if ($post_img == "wi")
+    $content_start .= '<item href="Text/Illustrations.xhtml" id="Illustrations.xhtml" media-type="application/xhtml+xml" />' . "\n";
+
+$content_start .= '<item href="Images/Cover.jpg" id="Cover.jpg" media-type="image/jpeg" />' . "\n";
+
+$content_end = '</manifest>' . "\n"
+        . '<spine toc="ncx">' . "\n"
+        . '<itemref idref="Cover.xhtml" />' . "\n";
+
+if ($post_img == "wi")
+    $content_end .= '<itemref idref="Illustrations.xhtml" />' . "\n";
+
+$content_end .= '<itemref idref="Body.xhtml" />' . "\n"
+        . '</spine>' . "\n"
+        . '<guide>' . "\n"
+        . '<reference href="Text/Cover.xhtml" title="Cover" type="cover" />' . "\n"
+        . '</guide>' . "\n"
+        . '</package>';
+
+if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/^[Cc]over.jp[e]?g/')) {
+    $data = getimagesize("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result);
+    $width = $data[0];
+    $height = $data[1];
+    unset($result);
+} else {
+    $data = getimagesize('404.jpg');
+    $width = $data[0];
+    $height = $data[1];
+}
+
+$cover = '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" . "\n"
+        . '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">' . "\n"
+        . '<head>' . "\n"
+        . '<meta content="true" name="calibre:cover" />' . "\n" . "\n"
+        . '<title>Cover</title>' . "\n"
+        . '<style type="text/css">' . "\n"
+        . '/*<![CDATA[*/' . "\n" . "\n"
+        . '@page {padding: 0pt; margin:0pt}' . "\n"
+        . 'body { text-align: center; padding:0pt; margin: 0pt; }' . "\n"
+        . '/*]]>*/' . "\n"
+        . '</style>' . "\n"
+        . '</head>' . "\n" . "\n"
+        . '<body>' . "\n"
+        . '<div>' . "\n"
+        . '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
+        . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . "\n"
+        . '</svg>' . "\n"
+        . '</div>' . "\n"
+        . '</body>' . "\n"
+        . '</html>';
+
 $homepage = file_get_contents('http://www.baka-tsuki.org/project/index.php?action=render&title=' . $zeile['Title']);
 
 $homepage = preg_replace('/<span class="editsection">.*<\/a>]<\/span>/', "", $homepage);
 $homepage = preg_replace('%<table\b\sid="toc"[^>]*+>(?:(?R)|[^<]*+(?:(?!</?table\b)<[^<]*+)*+)*+</table>%i', '', $homepage);
+
+/*
+ * Warning this might create empty file if there is another table before it with the same tags.
+ */
+//$homepage = strstr($homepage, '<table class="wikitable collapsible collapsed" style="text-align:left; margin:1em auto 1em auto; clear:both; font-size:100%; background:#E6F2FF; font-weight:900">', TRUE);
 //$homepage = preg_replace('%<table\b\sid="collapsibleTable0"[^>]*+>(?:(?R)|[^<]*+(?:(?!</?table\b)<[^<]*+)*+)*+</table>%i', '', $homepage);
 
 if (preg_match('/<h2>/', $homepage) & !preg_match('/<h1>/', $homepage)) {
@@ -199,8 +325,9 @@ function replaceIMG($homepage, $remove) {
     if (!$remove) {
 
         global $BID, $device, $post_series, $post_size;
+        
         $dirimg = array();
-
+        
         if ($handle = opendir('../ln/images/books/' . $post_series . '/' . $BID . '/')) {
             while (false !== ($entry = readdir($handle))) {
                 if ($entry != "." && $entry != "..") {
@@ -221,9 +348,7 @@ function replaceIMG($homepage, $remove) {
         $content_mid = '';
 
         foreach (getImagesURL($homepage) as $img) {
-
             if (in_array($img, $dirimgi)) {
-
                 if ($post_size == "original") {
                     $data = getimagesize('../ln/images/books/' . $post_series . '/' . $BID . '/' . $img);
                     $width = $data[0];
@@ -244,6 +369,7 @@ function replaceIMG($homepage, $remove) {
                     $stringData = '<p><img alt="' . $img . '" class="baka" src="../Images/' . $img . '" /></p>';
                 }
 
+                $img_org = $img;
                 $img = str_replace(')', '\)', str_replace('(', '\(', $img));
 
                 if (preg_match('/<div class="thumb tright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>.*<\/div><\/div><\/div>/', $homepage)) {
@@ -259,6 +385,8 @@ function replaceIMG($homepage, $remove) {
                 } else {
                     $illustrations .= $stringData . "\n";
                 }
+
+                $img = $img_org;
 
                 if (end(explode(".", $img)) == "jpg" || "jpeg") {
                     $content_mid .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/jpeg" />' . "\n";
@@ -290,116 +418,42 @@ function replaceIMG($homepage, $remove) {
 
 function withIMG($homepage) {
 
-    global $body_start, $body_end, $toc_start, $toci_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $uuidi, $BID, $device, $post_series, $post_size;
-
+    global $body_start, $body_end, $toc_start, $toci_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $uuidi, $BID, $device, $post_series, $post_size, $content_start, $content_end, $cover;
 
     $file = $title . '.epub';
     $file = str_replace("/", "_", $file);
-    if (!copy('wi.epub', "epubi/" . $file)) {
-        echo "copy $file schlug fehl...\n";
-        die();
-    }
 
-    $content_start = ''
-            . '<?xml version="1.0" encoding="utf-8" standalone="yes"?>' . "\n"
-            . '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">' . "\n"
-            . '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">' . "\n";
+    if ($post_size == "original") {
+        $file_path = "epubi/" . $file;
 
-    if (!empty($uuid))
-        $content_start .= '<dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:' . $uuidi . '</dc:identifier>' . "\n";
-
-    if (!empty($title))
-        $content_start .= '<dc:title>' . $title . '</dc:title>' . "\n";
-
-    if (!empty($illustrator))
-        $content_start .= '<dc:contributor opf:role="ill">' . $illustrator . '</dc:contributor>' . "\n";
-
-    if (!empty($isbn))
-        $content_start .= '<dc:identifier opf:scheme="ISBN">' . $isbn . '</dc:identifier>' . "\n";
-
-    if (!empty($author))
-        $content_start .= '<dc:creator opf:role="aut">' . $author . '</dc:creator>' . "\n";
-
-    if (!empty($desc))
-        $content_start .= '<dc:description>' . $desc . '</dc:description>' . "\n";
-
-    if (!empty($date))
-        $content_start .= '<dc:date opf:event="creation">' . $date . '</dc:date>' . "\n";
-
-    $content_start .= '<dc:contributor opf:role="edt">Simon</dc:contributor>' . "\n";
-
-    if (!empty($translator))
-        $content_start .= '<dc:contributor opf:file-as="' . $translator . '" opf:role="trl">' . $translator . '</dc:contributor>' . "\n";
-
-    if (!empty($date))
-        $content_start .= '<dc:date opf:event="publication">' . $date . '</dc:date>' . "\n";
-
-    $content_start .= '<dc:publisher>Baka-Tsuki</dc:publisher>' . "\n"
-            . '<dc:language>en</dc:language>' . "\n"
-            . '<meta content="Cover.jpg" name="cover" />' . "\n"
-            . '</metadata>' . "\n"
-            . '<manifest>' . "\n"
-            . '<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml" />' . "\n"
-            . '<item href="Text/Cover.xhtml" id="Cover.xhtml" media-type="application/xhtml+xml" />' . "\n"
-            . '<item href="Styles/stylesheet.css" id="stylesheet.css" media-type="text/css" />' . "\n"
-            . '<item href="Styles/page_styles.css" id="page_styles.css" media-type="text/css" />' . "\n"
-            . '<item href="Text/Body.xhtml" id="Body.xhtml" media-type="application/xhtml+xml" />' . "\n"
-            . '<item href="Text/Illustrations.xhtml" id="Illustrations.xhtml" media-type="application/xhtml+xml" />' . "\n"
-            . '<item href="Images/Cover.jpg" id="Cover.jpg" media-type="image/jpeg" />' . "\n";
-
-
-    $content_end = '  </manifest>' . "\n"
-            . '<spine toc="ncx">' . "\n"
-            . '<itemref idref="Cover.xhtml" />' . "\n"
-            . '<itemref idref="Illustrations.xhtml" />' . "\n"
-            . '<itemref idref="Body.xhtml" />' . "\n"
-            . '</spine>' . "\n"
-            . '<guide>' . "\n"
-            . '<reference href="Text/Cover.xhtml" title="Cover" type="cover" />' . "\n"
-            . '</guide>' . "\n"
-            . '</package>';
-
-    if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/[Cc]over.jp[e]?g/')) {
-        $data = getimagesize("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result);
-        $width = $data[0];
-        $height = $data[1];
-        unset($result);
+        if (!copy('wi.epub', $file_path)) {
+            echo "copy $file schlug fehl...\n";
+            die();
+        }
     } else {
-        $data = getimagesize('404.jpg');
-        $width = $data[0];
-        $height = $data[1];
+
+        $file_path = "epubi/resized/" . $post_size . "/" . $file;
+
+        if (!is_dir("epubi/resized")) {
+            mkdir("epubi/resized");
+        }
+        if (!is_dir("epubi/resized/" . $post_size)) {
+            mkdir("epubi/resized/" . $post_size);
+        }
+
+        if (!copy('wi.epub', $file_path)) {
+            echo "copy $file schlug fehl...\n";
+            die();
+        }
     }
-
-
-    $cover = '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" . "\n"
-            . '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">' . "\n"
-            . '<head>' . "\n"
-            . '<meta content="true" name="calibre:cover" />' . "\n" . "\n"
-            . '<title>Cover</title>' . "\n"
-            . '<style type="text/css">' . "\n"
-            . '/*<![CDATA[*/' . "\n" . "\n"
-            . '@page {padding: 0pt; margin:0pt}' . "\n"
-            . 'body { text-align: center; padding:0pt; margin: 0pt; }' . "\n"
-            . '/*]]>*/' . "\n"
-            . '</style>' . "\n"
-            . '</head>' . "\n" . "\n"
-            . '<body>' . "\n"
-            . '<div>' . "\n"
-            . '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
-            . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . "\n"
-            . '</svg>' . "\n"
-            . '</div>' . "\n"
-            . '</body>' . "\n"
-            . '</html>';
 
     $homepage_arr = replaceIMG($homepage, FALSE);
 
-    $homepage = preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", $homepage_arr['homepage']);
+    $homepage = preg_replace("/<h.>.*?Illustrations.*?<\/h.>/", "", $homepage_arr['homepage']);
     preg_match_all('/<h([0-9]).*?>.*?<\/h[0-9]>/i', $homepage, $matches);
     $homepage = strstr($homepage, '<h' . $matches[1][0] . '>');
 
     $toc_arr = getTOC($homepage);
-
 
     $body = $body_start . $toc_arr['homepage'] . $body_end;
     $illustr = $body_start . $homepage_arr['ill'] . $body_end;
@@ -409,6 +463,7 @@ function withIMG($homepage) {
     $content = preg_replace('/[^(\x20-\x7F)]*/', '', $content);
 
     $dirimg = array();
+    
     if ($handle = opendir('../ln/images/books/' . $post_series . '/' . $BID . '/')) {
         while (false !== ($entry = readdir($handle))) {
             if ($entry != "." && $entry != ".." && $entry != "cover.jpg" && $entry != "cover.jpeg" && $entry != "Cover.jpg" && $entry != "Cover.jpeg") {
@@ -418,23 +473,20 @@ function withIMG($homepage) {
         closedir($handle);
     }
 
-
     $zip = new ZipArchive;
-    if ($zip->open("epubi/" . $file) === TRUE) {
+    if ($zip->open($file_path) === TRUE) {
         $zip->addFromString('OEBPS/Text/Body.xhtml', $body);
         $zip->addFromString('OEBPS/Text/Cover.xhtml', $cover);
         $zip->addFromString('OEBPS/Text/Illustrations.xhtml', $illustr);
         $zip->addFromString('OEBPS/toc.ncx', $toc);
         $zip->addFromString('OEBPS/content.opf', $content);
-        if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/[Cc]over.jp[e]?g/')) {
+        if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/^[Cc]over.jp[e]?g/')) {
             $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
             unset($result);
         } else {
             $zip->addFile('404.jpg', 'OEBPS/Images/Cover.jpg');
         }
         foreach ($dirimg as $img) {
-
-
             if ($post_size == "original") {
                 $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
             } else {
@@ -473,114 +525,24 @@ function withIMG($homepage) {
     } else {
         echo 'Fehler';
     }
-
-    $fp = fopen("epubi/" . $file, "r");
-    $fstat = fstat($fp);
-    fclose($fp);
-
-    if (file_exists("epubi/" . $file)) {
-        header('Content-Type: application/epub+zip');
-        header("Content-Length: " . $fstat['size']);
-        header('Content-Disposition: attachment; filename="' . $title . '.epub"');
-        readfile("epubi/" . $file);
-    }
+    sendFile($file_path, $title);
 }
 
 function withoutIMG($homepage) {
 
-    global $body_start, $body_end, $toc_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $BID, $post_series;
-
+    global $body_start, $body_end, $toc_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $BID, $post_series, $content_start, $content_end, $cover;
 
     $file = $title . '.epub';
     $file = str_replace("/", "_", $file);
-    if (!copy('ni.epub', "epub/" . $file)) {
+
+    $file_path = "epub/" . $file;
+
+    if (!copy('ni.epub', $file_path)) {
         echo "copy $file schlug fehl...\n";
+        die();
     }
 
-    $content = '<?xml version="1.0" encoding="utf-8" standalone="yes"?>' . "\n"
-            . '<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">' . "\n"
-            . '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">' . "\n";
-    if (!empty($uuid))
-        $content .= '<dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:' . $uuid . '</dc:identifier>' . "\n";
-
-    if (!empty($title))
-        $content .= '<dc:title>' . $title . '</dc:title>' . "\n";
-
-    if (!empty($illustrator))
-        $content .= '<dc:contributor opf:role="ill">' . $illustrator . '</dc:contributor>' . "\n";
-
-    if (!empty($isbn))
-        $content .= '<dc:identifier opf:scheme="ISBN">' . $isbn . '</dc:identifier>' . "\n";
-
-    if (!empty($author))
-        $content .= '<dc:creator opf:role="aut">' . $author . '</dc:creator>' . "\n";
-
-    if (!empty($desc))
-        $content .= '<dc:description>' . $desc . '</dc:description>' . "\n";
-
-    if (!empty($date))
-        $content .= '<dc:date opf:event="creation">' . $date . '</dc:date>' . "\n";
-
-    $content .= '<dc:contributor opf:role="edt">Simon</dc:contributor>' . "\n";
-
-    if (!empty($translator))
-        $content .= '<dc:contributor opf:file-as="' . $translator . '" opf:role="trl">' . $translator . '</dc:contributor>' . "\n";
-
-    if (!empty($date))
-        $content .= '<dc:date opf:event="publication">' . $date . '</dc:date>' . "\n";
-
-    $content .= '<dc:publisher>Baka-Tsuki</dc:publisher>' . "\n"
-            . '<dc:language>en</dc:language>' . "\n"
-            . '<meta content="Cover.jpg" name="cover" />' . "\n"
-            . '</metadata>' . "\n"
-            . '<manifest>' . "\n"
-            . '<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml" />' . "\n"
-            . '<item href="Text/Cover.xhtml" id="Cover.xhtml" media-type="application/xhtml+xml" />' . "\n"
-            . '<item href="Styles/stylesheet.css" id="stylesheet.css" media-type="text/css" />' . "\n"
-            . '<item href="Styles/page_styles.css" id="page_styles.css" media-type="text/css" />' . "\n"
-            . '<item href="Text/Body.xhtml" id="Body.xhtml" media-type="application/xhtml+xml" />' . "\n"
-            . '<item href="Images/Cover.jpg" id="Cover.jpg" media-type="image/jpeg" />' . "\n"
-            . '</manifest>' . "\n"
-            . '<spine toc="ncx">' . "\n"
-            . '<itemref idref="Cover.xhtml" />' . "\n"
-            . '<itemref idref="Body.xhtml" />' . "\n"
-            . '</spine>' . "\n"
-            . '<guide>' . "\n"
-            . '<reference href="Text/Cover.xhtml" title="Cover" type="cover" />' . "\n"
-            . '</guide>' . "\n"
-            . '</package>';
-
-    if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/[Cc]over.jp[e]?g/')) {
-        $data = getimagesize("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result);
-        $width = $data[0];
-        $height = $data[1];
-        unset($result);
-    } else {
-        $data = getimagesize('404.jpg');
-        $width = $data[0];
-        $height = $data[1];
-    }
-
-    $cover = '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" . "\n"
-            . '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">' . "\n"
-            . '<head>' . "\n"
-            . '<meta content="true" name="calibre:cover" />' . "\n" . "\n"
-            . '<title>Cover</title>' . "\n"
-            . '<style type="text/css">' . "\n"
-            . '/*<![CDATA[*/' . "\n" . "\n"
-            . '@page {padding: 0pt; margin:0pt}' . "\n"
-            . 'body { text-align: center; padding:0pt; margin: 0pt; }' . "\n" . "\n"
-            . '/*]]>*/' . "\n"
-            . '</style>' . "\n"
-            . '</head>' . "\n" . "\n"
-            . '<body>' . "\n"
-            . '<div>' . "\n"
-            . '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
-            . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . "\n"
-            . '</svg>' . "\n"
-            . '</div>' . "\n"
-            . '</body>' . "\n"
-            . '</html>';
+    $content = $content_start . $content_end;
 
     $homepage = preg_replace("/<h.>.*Novel\sIllustrations.*<\/h.>/", "", replaceIMG($homepage, TRUE));
     preg_match_all('/<h([0-9]).*?>.*?<\/h[0-9]>/i', $homepage, $matches);
@@ -595,12 +557,12 @@ function withoutIMG($homepage) {
     $content = preg_replace('/[^(\x20-\x7F)]*/', '', $content);
 
     $zip = new ZipArchive;
-    if ($zip->open("epub/" . $file) === TRUE) {
+    if ($zip->open($file_path) === TRUE) {
         $zip->addFromString('OEBPS/Text/Body.xhtml', $body);
         $zip->addFromString('OEBPS/Text/Cover.xhtml', $cover);
         $zip->addFromString('OEBPS/toc.ncx', $toc);
         $zip->addFromString('OEBPS/content.opf', $content);
-        if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/[Cc]over.jp[e]?g/')) {
+        if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/^[Cc]over.jp[e]?g/')) {
             $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
             unset($result);
         } else {
@@ -611,16 +573,7 @@ function withoutIMG($homepage) {
         echo 'Fehler';
     }
 
-    $fp = fopen("epub/" . $file, "r");
-    $fstat = fstat($fp);
-    fclose($fp);
-
-    if (file_exists("epub/" . $file)) {
-        header('Content-Type: application/epub+zip');
-        header("Content-Length: " . $fstat['size']);
-        header('Content-Disposition: attachment; filename="' . $title . '.epub"');
-        readfile("epub/" . $file);
-    }
+    sendFile($file_path, $title);
 }
 
 function searchFolder($path, $regex) {
@@ -633,6 +586,19 @@ function searchFolder($path, $regex) {
                 return $exp;
             }
         }
+    }
+}
+
+function sendFile($file_path, $title) {
+    $fp = fopen($file_path, "r");
+    $fstat = fstat($fp);
+    fclose($fp);
+
+    if (file_exists($file_path)) {
+        header('Content-Type: application/epub+zip');
+        header("Content-Length: " . $fstat['size']);
+        header('Content-Disposition: attachment; filename="' . $title . '.epub"');
+        readfile($file_path);
     }
 }
 
