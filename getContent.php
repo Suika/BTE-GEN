@@ -4,6 +4,7 @@ header('Content-Type: text/html; charset=utf-8');
 
 include_once "lib.uuid.php";
 require_once 'conf/DbConnector.php';
+include_once 'setDate.php';
 
 $post_series = $_POST['series'];
 $post_books = $_POST['books'];
@@ -11,11 +12,11 @@ $post_img = $_POST['img'];
 $post_size = $_POST['size'];
 
 /*
-  $post_series = 7;
-  $post_books = "Boku_wa_Tomodachi_ga_Sukunai:Volume_07";
+  $post_series = 21;
+  $post_books = "Golden_Time:Volume1";
   $post_img = "wi";
   $post_size = "original";
- */
+*/
 
 $db = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) or die('<p><font color=red>Fehler bei der Datenbankverbindung: ' . mysqli_connect_errno() . ': ' . mysqli_connect_error() . '</p>');
 
@@ -57,23 +58,24 @@ $date = date("Y-m-d");
 $uuid = $zeile['UUID'];
 $uuidi = $zeile['UUIDI'];
 
-/*
+
+  $file = str_replace("/", "_", $title);
   if ($post_img == "wi") {
-  if ($post_size == "original"){
-  if (file_exists("epubi/" . $file . ".epub")){
+  if ($post_size == "original") {
+  if (file_exists("epubi/" . $file . ".epub")) {
   sendFile("epubi/" . $file . ".epub", $title);
   }
   } else {
-  if (file_exists("epubi/resized/" . $post_size ."/" . $file . ".epub")){
-  sendFile("epubi/resized/" . $post_size ."/" . $file . ".epub", $title);
+  if (file_exists("epubi/resized/" . $post_size . "/" . $file . ".epub")) {
+  sendFile("epubi/resized/" . $post_size . "/" . $file . ".epub", $title);
   }
   }
   } elseif ($post_img == "ni") {
-  if (file_exists("epub/" . $file . ".epub")){
+  if (file_exists("epub/" . $file . ".epub")) {
   sendFile("epub/" . $file . ".epub", $title);
   }
   }
- */
+
 
 $device = array('sgs2' => array('h' => 800, 'w' => 480),
     'iphone4s' => array('h' => 960, 'w' => 640),
@@ -87,7 +89,8 @@ $device = array('sgs2' => array('h' => 800, 'w' => 480),
     't9810' => array('h' => 640, 'w' => 480),
     'htc' => array('h' => 960, 'w' => 540),
     'lg' => array('h' => 800, 'w' => 400),
-    'sb' => array('h' => 320, 'w' => 240));
+    'sb' => array('h' => 320, 'w' => 240),
+    'kobotouch' => array('h' => 800, 'w' => 600));
 
 $body_start = ''
         . '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n"
@@ -101,26 +104,24 @@ $body_start = ''
 
 $body_end = '</body>' . "\n" . '</html>';
 
-$toc_start = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?><!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd"><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' . "\n"
-        . '<head>' . "\n"
-        . '<meta content="urn:uuid:' . $uuid . '" name="dtb:uid"/>' . "\n"
-        . '<meta content="1" name="dtb:depth"/>' . "\n"
-        . '<meta content="0" name="dtb:totalPageCount"/>' . "\n"
-        . '<meta content="0" name="dtb:maxPageNumber"/>' . "\n"
-        . '</head>' . "\n"
-        . '<docTitle>' . "\n"
-        . '<text>Unknown</text>' . "\n"
-        . '</docTitle>' . "\n";
+$toc_start = '<?xml version="1.0" encoding="utf-8"?>'. "\n"
+        . '<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN"' . "\n"
+        . ' "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">' . "\n"
+        . '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' . "\n"
+        . '<head>' . "\n";
 
-$toci_start = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?><!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd"><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' . "\n"
-        . '<head>' . "\n"
-        . '<meta content="urn:uuid:' . $uuidi . '" name="dtb:uid"/>' . "\n"
-        . '<meta content="1" name="dtb:depth"/>' . "\n"
-        . '<meta content="0" name="dtb:totalPageCount"/>' . "\n"
-        . '<meta content="0" name="dtb:maxPageNumber"/>' . "\n"
+if ($post_img == "ni")
+    $toc_start .= '<meta name="dtb:uid" content="urn:uuid:' . $uuid . '" />' . "\n";
+
+if ($post_img == "wi")
+    $toc_start .= '<meta name="dtb:uid" content="urn:uuid:' . $uuidi . '" />' . "\n";
+        
+$toc_start .= '<meta name="dtb:depth" content="1" />' . "\n"
+        . '<meta name="dtb:totalPageCount" content="0" />' . "\n"
+        . '<meta name="dtb:maxPageNumber" content="0" />' . "\n"
         . '</head>' . "\n"
         . '<docTitle>' . "\n"
-        . '<text>Unknown</text>' . "\n"
+        . '<text>' . $title . '</text>' . "\n"
         . '</docTitle>' . "\n";
 
 $toc_end = "\n" . '</ncx>';
@@ -213,10 +214,16 @@ $cover = '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html P
         . '</style>' . "\n"
         . '</head>' . "\n" . "\n"
         . '<body>' . "\n"
-        . '<div>' . "\n"
-        . '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
-        . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . "\n"
-        . '</svg>' . "\n"
+        . '<div>' . "\n";
+if ($post_size == "original"){
+    $cover .= '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
+           . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . "\n";
+} else {
+    $cover .= '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $device[$post_size]['w'] . ' ' . $device[$post_size]['h'] . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n"
+           . '<image height="' . $device[$post_size]['h'] . '" width="' . $device[$post_size]['w'] . '" xlink:href="../Images/Cover.jpg"></image>' . "\n";
+}
+
+$cover .= '</svg>' . "\n"
         . '</div>' . "\n"
         . '</body>' . "\n"
         . '</html>';
@@ -270,21 +277,36 @@ function getImagesURL($homepage) {
 }
 
 function getTOC($content) {
+    
+    global $toc_start;
 
     preg_match_all('/<h[0-9].*?>.*?<\/h[0-9]>/i', $content, $matches);
     $toc = array();
-
+    $headfirst = FALSE;
+    $headfound = FALSE;
+    
     foreach ($matches[0] as $match) {
         preg_match_all('/<h([0-9])>\s*?<span\sclass="mw-headline"\sid="(.*?)">(.*?)<\/h[0-9]>/i', $match, $smatch);
 
-        $toc[] = array('h' => $smatch[1][0], 'id' => $smatch[2][0], 'txt' => strip_tags($smatch[3][0]));
-
-        $content = str_replace($match, '<h' . $smatch[1][0] . ' id="' . $smatch[2][0] . '">' . strip_tags($smatch[3][0]) . '</h' . $smatch[1][0] . '>', $content);
+        if ($smatch[1][0] == 1) { $headfound = TRUE; }
+        if ($smatch[1][0] > 1 && $headfirst == FALSE) {
+            $toc[] = array('h' => 1, 'id' => preg_replace('/[\+\.\-:]/', '', $smatch[2][0]), 'txt' => trim(strip_tags($smatch[3][0])));
+            $content = str_replace($match, '<h1 id="' . preg_replace('/[\+\.\-:]/', '', $smatch[2][0]) . '">' . trim(strip_tags($smatch[3][0])) . '</h1>', $content);
+            $headfirst = TRUE;
+        } elseif ($smatch[1][0] > 1 && $headfirst == TRUE && $headfound == FALSE) {
+            $toc[] = array('h' => ($smatch[1][0] - 1), 'id' => preg_replace('/[\+\.\-:]/', '', $smatch[2][0]), 'txt' => trim(strip_tags($smatch[3][0])));
+            $content = str_replace($match, '<h' . ($smatch[1][0] - 1) . ' id="' . preg_replace('/[\+\.\-:]/', '', $smatch[2][0]) . '">' . trim(strip_tags($smatch[3][0])) . '</h' . ($smatch[1][0] - 1) . '>', $content);
+        } elseif ($smatch[1][0] == 1 || $headfirst == TRUE && $headfound == TRUE) {
+            $headfirst = TRUE;
+            $toc[] = array('h' => $smatch[1][0], 'id' => preg_replace('/[\+\.\-:]/', '', $smatch[2][0]), 'txt' => trim(strip_tags($smatch[3][0])));
+            $content = str_replace($match, '<h' . $smatch[1][0] . ' id="' . preg_replace('/[\+\.\-:]/', '', $smatch[2][0]) . '">' . trim(strip_tags($smatch[3][0])) . '</h' . $smatch[1][0] . '>', $content);
+        }
     }
 
     $html_toc = '<navMap>' . "\n";
     $i = 1;
     $oh = 1;
+    $depth = 1;
     $hadfirst = false;
 
     foreach ($toc as $val) {
@@ -301,11 +323,20 @@ function getTOC($content) {
         $html_toc .= "\t" . '<navLabel>' . "\n";
         $html_toc .= "\t" . "\t" . '<text>' . $val[txt] . '</text>' . "\n";
         $html_toc .= "\t" . '</navLabel>' . "\n";
-        $html_toc .= "\t" . '<content src="Text/Body.xhtml#' . $val[id] . '"/>' . "\n";
+        
+        if ($i == 1){
+            $html_toc .= "\t" . '<content src="Text/Body.xhtml" />' . "\n";
+        } else {
+            $html_toc .= "\t" . '<content src="Text/Body.xhtml#' . $val[id] . '" />' . "\n";
+        }
 
         $hadfirst = true;
         $oh = $val[h];
         $i++;
+        
+        if ($val[h] > $depth){
+            $depth = $val[h];
+        }
     }
 
     $html_toc .= '</navPoint>' . "\n";
@@ -315,6 +346,8 @@ function getTOC($content) {
 
     $html_toc .= '</navMap>';
 
+    str_replace('<meta name="dtb:depth" content="1" />', '<meta name="dtb:depth" content="' . $depth . '" />', $toc_start);
+    
     return array('toc' => $html_toc, 'homepage' => $content);
 }
 
@@ -325,9 +358,9 @@ function replaceIMG($homepage, $remove) {
     if (!$remove) {
 
         global $BID, $device, $post_series, $post_size;
-        
+
         $dirimg = array();
-        
+
         if ($handle = opendir('../ln/images/books/' . $post_series . '/' . $BID . '/')) {
             while (false !== ($entry = readdir($handle))) {
                 if ($entry != "." && $entry != "..") {
@@ -418,7 +451,7 @@ function replaceIMG($homepage, $remove) {
 
 function withIMG($homepage) {
 
-    global $body_start, $body_end, $toc_start, $toci_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $uuidi, $BID, $device, $post_series, $post_size, $content_start, $content_end, $cover;
+    global $body_start, $body_end, $toc_start, $toc_end, $illustrator, $author, $editor, $translator, $title, $isbn, $desc, $date, $uuid, $uuidi, $BID, $device, $post_series, $post_size, $content_start, $content_end, $cover;
 
     $file = $title . '.epub';
     $file = str_replace("/", "_", $file);
@@ -457,13 +490,13 @@ function withIMG($homepage) {
 
     $body = $body_start . $toc_arr['homepage'] . $body_end;
     $illustr = $body_start . $homepage_arr['ill'] . $body_end;
-    $toc = $toci_start . $toc_arr['toc'] . $toc_end;
+    $toc = $toc_start . $toc_arr['toc'] . $toc_end;
     $content = $content_start . $homepage_arr['content'] . $content_end;
     $toc = preg_replace('/[^(\x20-\x7F)]*/', '', $toc);
     $content = preg_replace('/[^(\x20-\x7F)]*/', '', $content);
 
     $dirimg = array();
-    
+
     if ($handle = opendir('../ln/images/books/' . $post_series . '/' . $BID . '/')) {
         while (false !== ($entry = readdir($handle))) {
             if ($entry != "." && $entry != ".." && $entry != "cover.jpg" && $entry != "cover.jpeg" && $entry != "Cover.jpg" && $entry != "Cover.jpeg") {
@@ -481,7 +514,24 @@ function withIMG($homepage) {
         $zip->addFromString('OEBPS/toc.ncx', $toc);
         $zip->addFromString('OEBPS/content.opf', $content);
         if ($result = searchFolder("../ln/images/books/" . $post_series . "/" . $BID . "/*", '/^[Cc]over.jp[e]?g/')) {
-            $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
+            if ($post_size == "original"){
+                $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
+            } else {
+                try {
+                            if (file_exists("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $result)){
+                                $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                            } else {
+                                $image = new Imagick("../ln/images/books/" . $post_series . "/" . $BID . "/" . $result);
+                                $image->adaptiveResizeImage($device[$post_size]['h'], $device[$post_size]['w'], TRUE);
+                                $image->writeimage("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $result);
+                                $image->clear();
+                                $image->destroy();
+                                $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                            }
+                    } catch (Exception $e) {
+                        $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
+                    }
+            }
             unset($result);
         } else {
             $zip->addFile('404.jpg', 'OEBPS/Images/Cover.jpg');
@@ -509,12 +559,16 @@ function withIMG($homepage) {
                     if ($width < 400 || $height < 400) {
                         $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
                     } else {
-                        $image = new Imagick("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img);
-                        $image->adaptiveResizeImage($device[$post_size]['h'], $device[$post_size]['w'], TRUE);
-                        $image->writeimage("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img);
-                        $image->clear();
-                        $image->destroy();
-                        $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                        if (file_exists("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img)){
+                            $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                        } else {
+                            $image = new Imagick("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img);
+                            $image->adaptiveResizeImage($device[$post_size]['h'], $device[$post_size]['w'], TRUE);
+                            $image->writeimage("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img);
+                            $image->clear();
+                            $image->destroy();
+                            $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/resized/" . $device[$post_size]['h'] . "x" . $device[$post_size]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                        }
                     }
                 } catch (Exception $e) {
                     $zip->addFile("../ln/images/books/" . $post_series . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
