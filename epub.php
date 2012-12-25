@@ -55,29 +55,24 @@ class epub {
         'sb' => array('h' => 320, 'w' => 240),
         'kobotouch' => array('h' => 800, 'w' => 600));
     private $resolution = "";
+    private $epub = NULL;
 
     function __construct() {
-        include_once("Zip.php");
 
-        $this->zip = new Zip();
-        $this->zip->addFile("application/epub+zip", "mimetype");
-        $this->zip->addDirectory("META-INF/");
-        $this->zip->addDirectory("OEBPS/");
-        $this->zip->addDirectory("OEBPS/Images/");
-        $this->zip->addDirectory("OEBPS/Styles/");
-        $this->zip->addDirectory("OEBPS/Text/");
+        $this->epub = tempnam("/tmp", "EPUB");
 
-        $content = '<?xml version="1.0" encoding="UTF-8"?>' . PHP_EOL
-                . '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">' . PHP_EOL
-                . "\t" . '<rootfiles>' . PHP_EOL
-                . "\t\t" . '<rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>' . PHP_EOL
-                . "\t" . '</rootfiles>' . PHP_EOL
-                . '</container>';
+        if (!copy('epexampleub.epub', $this->epub)) {
+            echo "There was an error, please contact the administrator.";
+            die();
+        }
+    }
 
-        $zip->addFile($content, "META-INF/container.xml");
+    function __destruct() {
+        unlink($this->epub);
     }
 
     protected function getContent($urlTitle) {
+        header('Content-Type: text/html; charset=utf-8');
         $this->content = file_get_contents('http://www.baka-tsuki.org/project/index.php?action=render&title=' . $urlTitle);
         return TRUE;
     }
@@ -116,7 +111,10 @@ class epub {
 
         foreach ($tags as $tag) {
             if (preg_match('/\/project\/index\.php\?title=File:/', $tag->getAttribute('href'))) {
-                array_push($urls, end(explode(":", $tag->getAttribute('href'))));
+                $tag = $tag->getAttribute('href');
+                $tag = explode(":", $tag);
+                $tag = end($tag);
+                array_push($urls, $tag);
             }
         }
 
@@ -159,9 +157,9 @@ class epub {
 
         foreach ($toc as $val) {
 
-            if ($val[h] < $oh) {
+            if ($val['h'] < $oh) {
                 $html_toc .= str_repeat('</navPoint>' . PHP_EOL, $oh);
-            } elseif ($val[h] > $oh) {
+            } elseif ($val['h'] > $oh) {
                 
             } else {
                 $html_toc .= ($hadfirst) ? '</navPoint>' . PHP_EOL : null;
@@ -169,28 +167,25 @@ class epub {
 
             $html_toc .= '<navPoint id="navPoint-' . $i . '" playOrder="' . $i . '">' . PHP_EOL;
             $html_toc .= "\t" . '<navLabel>' . PHP_EOL;
-            $html_toc .= "\t" . "\t" . '<text>' . $val[txt] . '</text>' . PHP_EOL;
+            $html_toc .= "\t" . "\t" . '<text>' . $val['txt'] . '</text>' . PHP_EOL;
             $html_toc .= "\t" . '</navLabel>' . PHP_EOL;
 
             if ($i == 1) {
                 $html_toc .= "\t" . '<content src="Text/Body.xhtml" />' . PHP_EOL;
             } else {
-                $html_toc .= "\t" . '<content src="Text/Body.xhtml#' . $val[id] . '" />' . PHP_EOL;
+                $html_toc .= "\t" . '<content src="Text/Body.xhtml#' . $val['id'] . '" />' . PHP_EOL;
             }
 
             $hadfirst = true;
-            $oh = $val[h];
+            $oh = $val['h'];
             $i++;
 
-            if ($val[h] > $depth) {
-                $depth = $val[h];
+            if ($val['h'] > $depth) {
+                $depth = $val['h'];
             }
         }
 
-        $html_toc .= '</navPoint>' . PHP_EOL;
-
-        if ($oh > 1)
-            $html_toc .= '</navPoint>' . PHP_EOL;
+        $html_toc .= str_repeat('</navPoint>' . PHP_EOL, $oh);
 
         $html_toc .= '</navMap>';
 
@@ -210,7 +205,7 @@ class epub {
 
             if ($handle = opendir('../ln/images/books/' . $this->SID . '/' . $this->BID . '/')) {
                 while (false !== ($entry = readdir($handle))) {
-                    if ($entry != "." && $entry != "..") {
+                    if ($entry != "." && $entry != ".." && $entry != "resized") {
 
                         $data = getimagesize('../ln/images/books/' . $this->SID . '/' . $this->BID . '/' . $entry);
                         $width = $data[0];
@@ -224,7 +219,7 @@ class epub {
                 closedir($handle);
             }
 
-            foreach (getImagesURL($content) as $img) {
+            foreach ($this->contentImgUrls as $img) {
                 if (in_array($img, $dirimgi)) {
                     if ($this->resolution == "original") {
                         $data = getimagesize('../ln/images/books/' . $this->SID . '/' . $this->BID . '/' . $img);
@@ -265,11 +260,14 @@ class epub {
 
                     $img = $img_org;
 
-                    if (end(explode(".", $img)) == "jpg" || "jpeg") {
+                    $end_tag = explode(".", $img);
+                    $end_tag = end($end_tag);
+
+                    if ($end_tag == "jpg" || "jpeg") {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/jpeg" />' . PHP_EOL;
-                    } elseif (end(explode(".", $img)) == "png") {
+                    } elseif ($end_tag == "png") {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/png" />' . PHP_EOL;
-                    } elseif (end(explode(".", $img)) == "gif") {
+                    } elseif ($end_tag == "gif") {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/gif" />' . PHP_EOL;
                     }
                 } else {
@@ -303,7 +301,9 @@ class epub {
             return FALSE;
         } else {
             foreach ($files as $file) {
-                if (preg_match($regex, $exp = end(explode('/', $file)))) {
+                $exp = explode('/', $file);
+                $exp = end($exp);
+                if (preg_match($regex, $exp)) {
                     return $exp;
                 }
             }
@@ -326,7 +326,7 @@ class epub {
     protected function constructNCX($navmap, $uuid, $depth, $title) {
         $this->ncx =
                 '<?xml version="1.0" encoding="utf-8"?>' . PHP_EOL
-                . '<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN"' . PHP_EOL
+                . '<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" ' . PHP_EOL
                 . '"http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">' . PHP_EOL
                 . '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">' . PHP_EOL
                 . "\t" . '<head>' . PHP_EOL
@@ -349,71 +349,72 @@ class epub {
                 . "\t" . '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">' . PHP_EOL;
 
         if (!empty($this->uuid))
-            $this->ncx .= '<dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:' . $this->uuid . '</dc:identifier>' . PHP_EOL;
+            $this->opf .= '<dc:identifier id="BookId" opf:scheme="UUID">urn:uuid:' . $this->uuid . '</dc:identifier>' . PHP_EOL;
 
         if (!empty($this->title))
-            $this->ncx .= '<dc:title>' . $this->title . '</dc:title>' . PHP_EOL;
+            $this->opf .= '<dc:title>' . $this->title . '</dc:title>' . PHP_EOL;
 
         if (!empty($this->illustrator))
-            $this->ncx .= '<dc:contributor opf:role="ill">' . $this->illustrator . '</dc:contributor>' . PHP_EOL;
+            $this->opf .= '<dc:contributor opf:role="ill">' . $this->illustrator . '</dc:contributor>' . PHP_EOL;
 
         if (!empty($this->isbn))
-            $this->ncx .= '<dc:identifier opf:scheme="ISBN">' . $this->isbn . '</dc:identifier>' . PHP_EOL;
+            $this->opf .= '<dc:identifier opf:scheme="ISBN">' . $this->isbn . '</dc:identifier>' . PHP_EOL;
 
         if (!empty($this->author)) {
             $temp = explode(" ", $this->author);
-            $this->ncx .= '<dc:creator opf:file-as="' . $temp[1] . ', ' . $temp[0] . '" opf:role="aut">' . $this->author . '</dc:creator>' . PHP_EOL;
+            $this->opf .= '<dc:creator opf:file-as="' . $temp[1] . ', ' . $temp[0] . '" opf:role="aut">' . $this->author . '</dc:creator>' . PHP_EOL;
             unset($temp);
         }
 
         if (!empty($this->description))
-            $this->ncx .= '<dc:description>' . $this->description . '</dc:description>' . PHP_EOL;
+            $this->opf .= '<dc:description>' . $this->description . '</dc:description>' . PHP_EOL;
 
         if (!empty($this->date)) {
-            $this->ncx .= '<dc:date>' . $this->date . '</dc:date>' . PHP_EOL;
-            $this->ncx .= '<dc:date opf:event="creation">' . $this->date . '</dc:date>' . PHP_EOL;
+            $this->opf .= '<dc:date>' . $this->date . '</dc:date>' . PHP_EOL;
+            $this->opf .= '<dc:date opf:event="creation">' . $this->date . '</dc:date>' . PHP_EOL;
         }
 
         if (!empty($this->editor))
-            $this->ncx .= '<dc:contributor opf:role="edt">' . $this->editor . '</dc:contributor>' . PHP_EOL;
+            $this->opf .= '<dc:contributor opf:role="edt">' . $this->editor . '</dc:contributor>' . PHP_EOL;
 
         if (!empty($this->translator))
-            $this->ncx .= '<dc:contributor opf:file-as="' . $this->translator . '" opf:role="trl">' . $this->translator . '</dc:contributor>' . PHP_EOL;
+            $this->opf .= '<dc:contributor opf:file-as="' . $this->translator . '" opf:role="trl">' . $this->translator . '</dc:contributor>' . PHP_EOL;
 
         if (!empty($this->date))
-            $this->ncx .= '<dc:date opf:event="publication">' . $this->date . '</dc:date>' . PHP_EOL;
+            $this->opf .= '<dc:date opf:event="publication">' . $this->date . '</dc:date>' . PHP_EOL;
 
         if (!empty($this->publisher))
-            $this->ncx .= '<dc:publisher>' . $this->publisher . '</dc:publisher>' . PHP_EOL;
+            $this->opf .= '<dc:publisher>' . $this->publisher . '</dc:publisher>' . PHP_EOL;
 
         if (!empty($this->language))
-            $this->ncx .= '<dc:language>' . $this->language . '</dc:language>' . PHP_EOL;
+            $this->opf .= '<dc:language>' . $this->language . '</dc:language>' . PHP_EOL;
 
         if (!empty($this->rights))
-            $this->ncx .= '<dc:rights>' . $this->rights . '</dc:rights>' . PHP_EOL;
+            $this->opf .= '<dc:rights>' . $this->rights . '</dc:rights>' . PHP_EOL;
 
-        $this->ncx .= '<meta content="Cover.jpg" name="cover" />' . PHP_EOL
+        $this->opf .= '<meta content="Cover.jpg" name="cover" />' . PHP_EOL
                 . '</metadata>' . PHP_EOL
                 . '<manifest>' . PHP_EOL
                 . '<item href="toc.ncx" id="ncx" media-type="application/x-dtbncx+xml" />' . PHP_EOL
                 . '<item href="Text/Cover.xhtml" id="Cover.xhtml" media-type="application/xhtml+xml" />' . PHP_EOL
                 . '<item href="Styles/stylesheet.css" id="stylesheet.css" media-type="text/css" />' . PHP_EOL
                 . '<item href="Styles/page_styles.css" id="page_styles.css" media-type="text/css" />' . PHP_EOL
-                . '<item href="Text/Body.xhtml" id="Body.xhtml" media-type="application/xhtml+xml" />' . PHP_EOL;
+                . '<item href="Text/Body.xhtml" id="Body.xhtml" media-type="application/xhtml+xml" />' . PHP_EOL
+                . '<item href="Images/Cover.jpg" id="Cover.jpg" media-type="image/jpeg" />' . PHP_EOL;
         if (!empty($this->manifest))
-            $this->ncx .= $this->manifest;
+            $this->opf .= $this->manifest;
 
         if (!empty($this->contentIllustartions))
-            $this->ncx .= '<item href="Text/Illustrations.xhtml" id="Illustrations.xhtml" media-type="application/xhtml+xml" />';
+            $this->opf .= '<item href="Text/Illustrations.xhtml" id="Illustrations.xhtml" media-type="application/xhtml+xml" />';
 
-        $this->ncx .= '</manifest>' . PHP_EOL
+        $this->opf .= '</manifest>' . PHP_EOL
                 . '<spine toc="ncx">' . PHP_EOL
                 . '<itemref idref="Cover.xhtml" />' . PHP_EOL;
 
         if (!empty($this->contentIllustartions))
-            $this->ncx .= '<itemref idref="Illustrations.xhtml" />' . PHP_EOL;
+            $this->opf .= '<itemref idref="Illustrations.xhtml" />' . PHP_EOL;
 
-        $this->ncx .= '<itemref idref="Body.xhtml" />' . PHP_EOL
+        $this->opf .= '<itemref idref="Body.xhtml" />' . PHP_EOL
                 . '</spine>' . PHP_EOL
                 . '<guide>' . PHP_EOL
                 . '<reference href="Text/Cover.xhtml" title="Cover" type="cover" />' . PHP_EOL
@@ -422,7 +423,7 @@ class epub {
     }
 
     protected function constructCover() {
-        if ($result = searchFolder("../ln/images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
+        if ($result = $this->searchFolder("../ln/images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
             $data = getimagesize("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
             $width = $data[0];
             $height = $data[1];
@@ -451,7 +452,7 @@ class epub {
             $this->cover .= '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $width . ' ' . $height . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . PHP_EOL
                     . '<image height="' . $height . '" width="' . $width . '" xlink:href="../Images/Cover.jpg"></image>' . PHP_EOL;
         } else {
-            $this->cover .= '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $device[$this->resolution]['w'] . ' ' . $device[$this->resolution]['h'] . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . PHP_EOL
+            $this->cover .= '<svg xmlns="http://www.w3.org/2000/svg" height="100%" preserveAspectRatio="xMidYMid meet" version="1.1" viewBox="0 0 ' . $this->device[$this->resolution]['w'] . ' ' . $this->device[$this->resolution]['h'] . '" width="100%" xmlns:xlink="http://www.w3.org/1999/xlink">' . PHP_EOL
                     . '<image height="' . $this->device[$this->resolution]['h'] . '" width="' . $this->device[$this->resolution]['w'] . '" xlink:href="../Images/Cover.jpg"></image>' . PHP_EOL;
         }
 
@@ -461,8 +462,206 @@ class epub {
                 . '</html>';
     }
 
-    public function processEpub() {
+    protected function constructIllustrations() {
+
+        $body = ''
+                . '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . PHP_EOL
+                . '<html xmlns="http://www.w3.org/1999/xhtml">' . PHP_EOL
+                . '<head>' . PHP_EOL
+                . '<title></title>' . PHP_EOL
+                . '<link href="../Styles/stylesheet.css" rel="stylesheet" type="text/css" />' . PHP_EOL
+                . '<link href="../Styles/page_styles.css" rel="stylesheet" type="text/css" />' . PHP_EOL
+                . '</head>' . PHP_EOL
+                . '<body>' . PHP_EOL;
+
+        $body .= $this->contentIllustartions;
+
+        $body .= '</body>' . PHP_EOL . '</html>';
+
+        $this->illustartions = $body;
+    }
+
+    protected function constructContent() {
+
+        $body = ''
+                . '<?xml version="1.0" encoding="utf-8" standalone="no"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . PHP_EOL
+                . '<html xmlns="http://www.w3.org/1999/xhtml">' . PHP_EOL
+                . '<head>' . PHP_EOL
+                . '<title></title>' . PHP_EOL
+                . '<link href="../Styles/stylesheet.css" rel="stylesheet" type="text/css" />' . PHP_EOL
+                . '<link href="../Styles/page_styles.css" rel="stylesheet" type="text/css" />' . PHP_EOL
+                . '</head>' . PHP_EOL
+                . '<body>' . PHP_EOL;
+
+        $body .= $this->content;
+
+        $body .= '</body>' . PHP_EOL . '</html>';
+
+        $this->content = $body;
+    }
+
+    protected function cleaning($what_to_clean, $tidy_config = '') {
+
+        $config = array(
+            'char-encoding' => 'utf8',
+            'output-xhtml' => true,
+            'doctype' => 'strict',
+            'indent' => true,
+            'indent-spaces' => 2
+        );
+
+        if ($tidy_config == '') {
+            $tidy_config = &$config;
+        }
+
+        $tidy = new tidy();
+        $out = $tidy->repairString($what_to_clean, $tidy_config, 'UTF8');
+        unset($tidy);
+        unset($tidy_config);
+        return($out);
+    }
+
+    protected function sendFile($file_path, $title) {
+        $fp = fopen($file_path, "r");
+        $fstat = fstat($fp);
+        fclose($fp);
+
+        if (file_exists($file_path)) {
+            header('Content-Type: application/epub+zip');
+            header("Content-Length: " . $fstat['size']);
+            header('Content-Disposition: attachment; filename="' . $title . '.epub"');
+            readfile($file_path);
+        }
+    }
+
+    function format(&$simpleXmlObject) {
+
+        $simpleXmlObject = simplexml_load_string($simpleXmlObject);
         
+        if (!is_object($simpleXmlObject)) {
+            return "";
+        }
+        //Format XML to save indented tree rather than one line
+        $dom = new DOMDocument('1.0');
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+        $dom->loadXML($simpleXmlObject->asXML());
+
+        return $dom->saveXML();
+    }
+
+    public function processEpub() {
+        $this->getContent($this->getTitle());
+        $this->cleanContent($this->content);
+        $this->getImagesURL($this->content);
+        $this->removeBeforeHeader($this->content);
+        $this->trimHeaders($this->content);
+
+
+        $this->replaceIMG($this->content);
+
+        $this->getTOC($this->content);
+        $this->constructNCX($this->ncx_navmap, $this->getUuid(), $this->depth, "test12");
+        $this->constructOPF();
+        $this->constructCover();
+        $this->constructContent();
+
+        $this->forceASCII($this->ncx, $this->opf);
+        
+        $this->ncx = $this->format($this->ncx);
+        $this->opf = $this->format($this->opf);
+
+        $dirimg = array();
+
+        if ($handle = opendir('../ln/images/books/' . $this->SID . '/' . $this->BID . '/')) {
+            while (false !== ($entry = readdir($handle))) {
+                if ($entry != "." && $entry != ".." && $entry != "cover.jpg" && $entry != "cover.jpeg" && $entry != "Cover.jpg" && $entry != "Cover.jpeg" && $entry != "resized") {
+                    $dirimg[] = $entry;
+                }
+            }
+            closedir($handle);
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($this->epub) === TRUE) {
+            $zip->addFromString('OEBPS/Text/Body.xhtml', $this->content);
+            $zip->addFromString('OEBPS/Text/Cover.xhtml', $this->cover);
+
+            if (!empty($this->contentIllustartions)) {
+                $this->constructIllustrations();
+                $zip->addFromString('OEBPS/Text/Illustrations.xhtml', $this->illustartions);
+            }
+
+            $zip->addFromString('OEBPS/toc.ncx', $this->ncx);
+            $zip->addFromString('OEBPS/content.opf', $this->opf);
+            if ($result = $this->searchFolder("../ln/images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
+                if ($this->resolution == "original") {
+                    $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                } else {
+                    try {
+                        if (file_exists("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result)) {
+                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                        } else {
+                            $image = new Imagick("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
+                            $image->adaptiveResizeImage($this->device[$this->resolution]['h'], $this->device[$this->resolution]['w'], TRUE);
+                            $image->writeimage("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result);
+                            $image->clear();
+                            $image->destroy();
+                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                        }
+                    } catch (Exception $e) {
+                        $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                    }
+                }
+                unset($result);
+            } else {
+                $zip->addFile('404.jpg', 'OEBPS/Images/Cover.jpg');
+            }
+            foreach ($dirimg as $img) {
+                if ($this->resolution == "original") {
+                    $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                } else {
+                    $width = $this->device[$this->resolution]['w'];
+                    $height = $this->device[$this->resolution]['h'];
+
+                    if (!is_dir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized")) {
+                        mkdir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized");
+                    }
+                    if (!is_dir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'])) {
+                        mkdir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w']);
+                    }
+
+                    try {
+
+                        $data = getimagesize("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
+                        $width = $data[0];
+                        $height = $data[1];
+
+                        if ($width < 400 || $height < 400) {
+                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                        } else {
+                            if (file_exists("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img)) {
+                                $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                            } else {
+                                $image = new Imagick("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
+                                $image->adaptiveResizeImage($this->device[$this->resolution]['h'], $this->device[$this->resolution]['w'], TRUE);
+                                $image->writeimage("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img);
+                                $image->clear();
+                                $image->destroy();
+                                $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                            }
+                        }
+                    } catch (Exception $e) {
+                        $zip->addFile("../ln/images/books/" . $this->SID . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
+                    }
+                }
+            }
+            $zip->close();
+        } else {
+            echo 'Fehler';
+        }
+
+        $this->sendFile($this->epub, "testtest");
     }
 
     private function getTitle() {
@@ -568,6 +767,14 @@ class epub {
 
     public function setFileName($fileName) {
         $this->fileName = str_replace("/", "_", $fileName) . ".epub";
+    }
+
+    public function setBID($BID) {
+        $this->BID = $BID;
+    }
+
+    public function setSID($SID) {
+        $this->SID = $SID;
     }
 
 }
