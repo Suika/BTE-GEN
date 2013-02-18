@@ -61,7 +61,7 @@ class epub {
 
     function __construct() {
 
-        $this->epub = tempnam("/tmp", "EPUB");
+        $this->epub = tempnam("tmp", "EPUB");
 
         if (!copy('epexampleub.epub', $this->epub)) {
             echo "There was an error, please contact the administrator.";
@@ -92,11 +92,15 @@ class epub {
             $content = str_replace("h3", "h2", $content);
             $content = str_replace("h4", "h3", $content);
             $content = str_replace("h5", "h4", $content);
+            $content = str_replace("h6", "h5", $content);
+            $content = str_replace("h7", "h6", $content);
         } elseif (!preg_match('/<h1>/', $content) & !preg_match('/<h2>/', $content) & preg_match('/<h3>/', $content)) {
             $content = str_replace("h3", "h1", $content);
             $content = str_replace("h4", "h2", $content);
             $content = str_replace("h5", "h3", $content);
             $content = str_replace("h6", "h4", $content);
+            $content = str_replace("h7", "h5", $content);
+            $content = str_replace("h8", "h6", $content);
         }
 
         $this->content = $content;
@@ -258,8 +262,8 @@ class epub {
                         $content = preg_replace('/<div class="floatright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
                     } elseif (preg_match('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $content)) {
                         $content = preg_replace('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
-                    } elseif (preg_match('/<p>.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p>/', $content)) {
-                        $content = preg_replace('/<p>.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p>/', $stringData, $content);
+                    } elseif (preg_match('/<a href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $content)) {
+                        $content = preg_replace('/<a href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $stringData, $content);
                     } else {
                         $this->contentIllustartions .= $stringData . PHP_EOL;
                     }
@@ -269,7 +273,7 @@ class epub {
                     $end_tag = explode(".", $img);
                     $end_tag = end($end_tag);
 
-                    if ($end_tag == "jpg" || "jpeg") {
+                    if (($end_tag == "jpg") || ($end_tag == "jpeg")) {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/jpeg" />' . PHP_EOL;
                     } elseif ($end_tag == "png") {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/png" />' . PHP_EOL;
@@ -313,7 +317,7 @@ class epub {
     }
 
     protected function removeBeforeHeader($content) {
-        $content = preg_replace("/<h.>.*?Illustrations.*?<\/h.>/", "", $content);
+        $content = preg_replace("/<h.>.*?[Ii]llustrations.*?<\/h.>/", "", $content);
         preg_match_all('/<h([0-9]).*?>.*?<\/h[0-9]>/i', $content, $matches);
         $content = strstr($content, '<h' . $matches[1][0] . '>');
 
@@ -537,6 +541,8 @@ class epub {
             header('Content-Disposition: attachment; filename="' . $title . '.epub"');
             readfile($file_path);
         }
+        
+        unlink($this->epub);
     }
 
     protected function format(&$simpleXmlObject) {
@@ -787,7 +793,10 @@ class epub {
     }
 
     public function setFileName($fileName) {
-        $this->fileName = str_replace("/", "_", $fileName);
+		$bad = array_merge(
+        array_map('chr', range(0,31)),
+        array("<", ">", ":", '"', "/", "\\", "|", "?", "*"));
+		$this->fileName = str_replace($bad, "", $fileName);
     }
 
     public function setBID($BID) {
