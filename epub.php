@@ -58,6 +58,8 @@ class epub {
     private $epub = NULL;
     private $replaceImg = array();
     private $noImages = FALSE;
+    private $first = TRUE;
+    private $iter = 0;
 
     function __construct() {
 
@@ -80,8 +82,9 @@ class epub {
     }
 
     protected function cleanContent($content) {
-        $content = preg_replace('/<span class="editsection">.*<\/a>]<\/span>/', "", $content);
-        $content = preg_replace('%<table\b\sid="toc"[^>]*+>(?:(?R)|[^<]*+(?:(?!</?table\b)<[^<]*+)*+)*+</table>%i', '', $content);
+        $content = preg_replace('/<span class="mw-editsection">.*>]<\/span><\/span>/m', "", $content);
+        $content = preg_replace('/<div\sid="toc".+?<div\sid="toctitle".+?<\/div>.+?<\/div>/s', '', $content);
+        //$content = preg_replace('%<table\b\sid="toc"[^>]*+>(?:(?R)|[^<]*+(?:(?!</?table\b)<[^<]*+)*+)*+</table>%i', '', $content);
         $this->content = $content;
         return TRUE;
     }
@@ -127,7 +130,60 @@ class epub {
         $this->contentImgUrls = array_unique($urls);
         return TRUE;
     }
+    
+    private function min_by_key($arr, $key){
+        $min = array();
+        foreach ($arr as $val) {
+            if (!isset($val[$key]) and is_array($val)) {
+                $min2 = $this->min_by_key($val, $key);
+                $min[$min2] = 1;
+            } elseif (!isset($val[$key]) and !is_array($val)) {
+                return false;
+            } elseif (isset($val[$key])) {
+                $min[$val[$key]] = 1;
+            }
+        }
+        return min( array_keys($min) );
+    } 
 
+    private function navPoint($array) {
+        if (empty($array))
+            return;
+        $high_header = $this->min_by_key($array, 'h');
+        $hhk = array();
+        foreach ($array as $key => $value) {
+            if($value['h'] == $high_header){
+                array_push($hhk, $key);
+            }
+        }
+        $length = count($hhk);
+        
+        for ($i = 0; $i < $length; ++$i) {
+            ++$this->iter;
+            if ($array[$hhk[$i]]['h'] > $this->depth) {
+                $this->depth = $array[$hhk[$i]]['h'];
+            }
+            $this->ncx_navmap .= '<navPoint id="navPoint-' . $this->iter . '" playOrder="' . $this->iter . '">' . PHP_EOL;
+            $this->ncx_navmap .= "\t" . '<navLabel>' . PHP_EOL;
+            $this->ncx_navmap .= "\t" . "\t" . '<text>' . $array[$hhk[$i]]['txt'] . '</text>' . PHP_EOL;
+            $this->ncx_navmap .= "\t" . '</navLabel>' . PHP_EOL;
+
+            if ($this->first == TRUE) {
+                $this->ncx_navmap .= "\t" . '<content src="Text/Body.xhtml" />' . PHP_EOL;
+                $this->first = FALSE;
+            } else {
+                $this->ncx_navmap .= "\t" . '<content src="Text/Body.xhtml#' . $array[$hhk[$i]]['id'] . '" />' . PHP_EOL;
+            }
+            
+            if ($i == $length - 1) {
+                $this->navPoint(array_slice($array, $hhk[$i] + 1, NULL));
+            } elseif (($hhk[$i + 1] - $hhk[$i]) > 1) {
+                $this->navPoint(array_slice($array, $hhk[$i] + 1, ($hhk[$i + 1] - $hhk[$i]) - 1));
+            }
+            $this->ncx_navmap .= '</navPoint>' . PHP_EOL;
+        }
+    }
+    
     protected function getTOC($content) {
 
         preg_match_all('/<h[0-9].*?>.*?<\/h[0-9]>/i', $content, $matches);
@@ -155,50 +211,13 @@ class epub {
             }
         }
 
-        $html_toc = '<navMap>' . PHP_EOL;
-        $i = 1;
-        $oh = 1;
+        $this->ncx_navmap = '<navMap>' . PHP_EOL;
         $depth = 1;
-        $hadfirst = false;
 
-        foreach ($toc as $val) {
+        $this->navPoint($toc);
 
-            if ($val['h'] < $oh) {
-                $html_toc .= str_repeat('</navPoint>' . PHP_EOL, $oh);
-            } elseif ($val['h'] > $oh) {
-                
-            } else {
-                $html_toc .= ($hadfirst) ? '</navPoint>' . PHP_EOL : null;
-            }
-
-            $html_toc .= '<navPoint id="navPoint-' . $i . '" playOrder="' . $i . '">' . PHP_EOL;
-            $html_toc .= "\t" . '<navLabel>' . PHP_EOL;
-            $html_toc .= "\t" . "\t" . '<text>' . $val['txt'] . '</text>' . PHP_EOL;
-            $html_toc .= "\t" . '</navLabel>' . PHP_EOL;
-
-            if ($i == 1) {
-                $html_toc .= "\t" . '<content src="Text/Body.xhtml" />' . PHP_EOL;
-            } else {
-                $html_toc .= "\t" . '<content src="Text/Body.xhtml#' . $val['id'] . '" />' . PHP_EOL;
-            }
-
-            $hadfirst = true;
-            $oh = $val['h'];
-            $i++;
-
-            if ($val['h'] > $depth) {
-                $depth = $val['h'];
-            }
-        }
-
-        $html_toc .= str_repeat('</navPoint>' . PHP_EOL, $oh);
-
-        $html_toc .= '</navMap>';
-
-        $this->depth = $depth;
-        $this->ncx_navmap = $html_toc;
+        $this->ncx_navmap .= '</navMap>';
         $this->content = $content;
-
         return TRUE;
     }
 
@@ -254,16 +273,16 @@ class epub {
                     $img_org = $img;
                     $img = str_replace(')', '\)', str_replace('(', '\(', $img));
 
-                    if (preg_match('/<div class="thumb tright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>.*<\/div><\/div><\/div>/', $content)) {
-                        $content = preg_replace('/<div class="thumb tright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>.*<\/div><\/div><\/div>/', $stringData, $content);
-                    } elseif (preg_match('/<div style="width: 100%; overflow:auto;">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', $content)) {
-                        $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', $stringData, $content);
-                    } elseif (preg_match('/<div class="floatright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $content)) {
-                        $content = preg_replace('/<div class="floatright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
-                    } elseif (preg_match('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $content)) {
-                        $content = preg_replace('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
-                    } elseif (preg_match('/<a href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $content)) {
-                        $content = preg_replace('/<a href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $stringData, $content);
+                    if (preg_match('/<div class="thumb tright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a><\/div><\/div><\/div><\/div>/', $content)) {
+                        $content = preg_replace('/<div class="thumb tright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a><\/div><\/div><\/div><\/div>/', $stringData, $content);
+                    } elseif (preg_match('/<div style="width: 100%; overflow:auto;">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', $content)) {
+                        $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', $stringData, $content);
+                    } elseif (preg_match('/<div class="floatright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $content)) {
+                        $content = preg_replace('/<div class="floatright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
+                    } elseif (preg_match('/<div class="floatleft">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $content)) {
+                        $content = preg_replace('/<div class="floatleft">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', $stringData, $content);
+                    } elseif (preg_match('/<a href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $content)) {
+                        $content = preg_replace('/<a href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".+?<\/a>/', $stringData, $content);
                     } else {
                         $this->contentIllustartions .= $stringData . PHP_EOL;
                     }
@@ -273,27 +292,28 @@ class epub {
                     $end_tag = explode(".", $img);
                     $end_tag = end($end_tag);
 
-                    if (($end_tag == "jpg") || ($end_tag == "jpeg")) {
+                    if (($end_tag == "jpg") || ($end_tag == "jpeg") || ($end_tag == "JPG") || ($end_tag == "JPEG")) {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/jpeg" />' . PHP_EOL;
-                    } elseif ($end_tag == "png") {
+                    } elseif (($end_tag == "png") || ($end_tag == "PNG")) {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/png" />' . PHP_EOL;
-                    } elseif ($end_tag == "gif") {
+                    } elseif (($end_tag == "gif") || ($end_tag == "GIF")) {
                         $this->manifest .= '<item href="Images/' . $img . '" id="' . $img . '" media-type="image/gif" />' . PHP_EOL;
                     }
                 } else {
-                    $content = preg_replace('/<div class="thumb tright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>.*<\/div><\/div><\/div>/', '', $content);
-                    $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', '', $content);
-                    $content = preg_replace('/<div class="floatright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', '', $content);
-                    $content = preg_replace('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', '', $content);
-                    $content = preg_replace('/<p>.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p>/', '', $content);
+                    $content = preg_replace('/<div class="thumb tright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>.*<\/div><\/div><\/div>/', '', $content);
+                    $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p><\/div>/', '', $content);
+                    $content = preg_replace('/<div class="floatright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', '', $content);
+                    $content = preg_replace('/<div class="floatleft">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/div>/', '', $content);
+                    $content = preg_replace('/<p>.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:' . $img . '".*<\/a><\/p>/', '', $content);
                 }
             }
         } else {
-            $content = preg_replace('/<div class="thumb tright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>.*<\/div><\/div><\/div>/', $stringData, $content);
-            $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/p><\/div>/', $stringData, $content);
-            $content = preg_replace('/<div class="floatright">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>/', $stringData, $content);
-            $content = preg_replace('/<div class="floatleft">.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>/', $stringData, $content);
-            $content = preg_replace('/<p>.*href="http:\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/p>/', $stringData, $content);
+            $content = preg_replace('/<div class="thumb tright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>.*<\/div><\/div><\/div>/', $stringData, $content);
+            $content = preg_replace('/<div style="width: 100%; overflow:auto;">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/p><\/div>/', $stringData, $content);
+            $content = preg_replace('/<div class="floatright">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>/', $stringData, $content);
+            $content = preg_replace('/<div class="floatleft">.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/div>/', $stringData, $content);
+            $content = preg_replace('/<p>.*href="\/\/www.baka-tsuki.org\/project\/index.php\?title=File:.*<\/a><\/p>/', $stringData, $content);
+            $content = preg_replace('/<a.*class="image".*<img.*\/><\/a>/', $stringData, $content);
         }
 
 
@@ -590,6 +610,7 @@ class epub {
         }
 
         $this->content = $this->cleaning($this->content);
+        //$this->content = str_replace('<br />', '&nbsp;', $this->content);
         $this->replaseSR();
 
         $this->forceASCII($this->ncx, $this->opf);
