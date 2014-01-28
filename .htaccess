@@ -1,0 +1,15 @@
+Options +FollowSymlinks
+RewriteEngine On
+RewriteRule ^v2/(.*)$ /v3 [NC,R=301]
+RewriteRule ^v3$ /v3/index.php [NC,R=301]
+RewriteRule ^book/([^/]+)$ /v3/book.php?BID=$1 [NC,R=301]
+RewriteRule ^([\d]+)$ /v3/book.php?BID=$1 [NC,R=301]
+RewriteRule ^update$ /v3/updates.php [NC,R=301]
+RewriteRule ^update/$ /v3/updates.php [NC,R=301]
+RewriteRule ^updates$ /v3/updates.php [NC,R=301]
+RewriteRule ^updates/$ /v3/updates.php [NC,R=301]
+RewriteRule ^feed$ /v3/feed.php [NC,R=301]
+RewriteRule ^feed/$ /v3/feed.php [NC,R=301]
+
+# -superserver-
+DirectoryIndex index.html

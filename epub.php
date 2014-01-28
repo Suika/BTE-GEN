@@ -228,11 +228,11 @@ class epub {
 
             $dirimg = array();
 
-            if ($handle = opendir('../ln/images/books/' . $this->SID . '/' . $this->BID . '/')) {
+            if ($handle = opendir('images/books/' . $this->SID . '/' . $this->BID . '/')) {
                 while (false !== ($entry = readdir($handle))) {
                     if ($entry != "." && $entry != ".." && $entry != "resized") {
 
-                        $data = getimagesize('../ln/images/books/' . $this->SID . '/' . $this->BID . '/' . $entry);
+                        $data = getimagesize('images/books/' . $this->SID . '/' . $this->BID . '/' . $entry);
                         $width = $data[0];
                         $height = $data[1];
 
@@ -247,7 +247,7 @@ class epub {
             foreach ($this->contentImgUrls as $img) {
                 if (in_array($img, $dirimgi)) {
                     if ($this->resolution == "original") {
-                        $data = getimagesize('../ln/images/books/' . $this->SID . '/' . $this->BID . '/' . $img);
+                        $data = getimagesize('images/books/' . $this->SID . '/' . $this->BID . '/' . $img);
                         $width = $data[0];
                         $height = $data[1];
                     } else {
@@ -449,8 +449,8 @@ class epub {
     }
 
     protected function constructCover() {
-        if ($result = $this->searchFolder("../ln/images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
-            $data = getimagesize("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
+        if ($result = $this->searchFolder("images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
+            $data = getimagesize("images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
             $width = $data[0];
             $height = $data[1];
             unset($result);
@@ -620,7 +620,7 @@ class epub {
 
         $dirimg = array();
 
-        if ($handle = opendir('../ln/images/books/' . $this->SID . '/' . $this->BID . '/')) {
+        if ($handle = opendir('images/books/' . $this->SID . '/' . $this->BID . '/')) {
             while (false !== ($entry = readdir($handle))) {
                 if ($entry != "." && $entry != ".." && $entry != "cover.jpg" && $entry != "cover.jpeg" && $entry != "Cover.jpg" && $entry != "Cover.jpeg" && $entry != "resized") {
                     $dirimg[] = $entry;
@@ -640,23 +640,23 @@ class epub {
 
             $zip->addFromString('OEBPS/toc.ncx', $this->ncx);
             $zip->addFromString('OEBPS/content.opf', $this->opf);
-            if ($result = $this->searchFolder("../ln/images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
+            if ($result = $this->searchFolder("images/books/" . $this->SID . "/" . $this->BID . "/*", '/^[Cc]over.jp[e]?g/')) {
                 if ($this->resolution == "original") {
-                    $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                    $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/" . $result, 'OEBPS/Images/Cover.jpg');
                 } else {
                     try {
-                        if (file_exists("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result)) {
-                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                        if (file_exists("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result)) {
+                            $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
                         } else {
-                            $image = new Imagick("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
+                            $image = new Imagick("images/books/" . $this->SID . "/" . $this->BID . "/" . $result);
                             $image->adaptiveResizeImage($this->device[$this->resolution]['h'], $this->device[$this->resolution]['w'], TRUE);
-                            $image->writeimage("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result);
+                            $image->writeimage("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result);
                             $image->clear();
                             $image->destroy();
-                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
+                            $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $result, 'OEBPS/Images/Cover.jpg');
                         }
                     } catch (Exception $e) {
-                        $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                        $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
                     }
                 }
                 unset($result);
@@ -666,40 +666,40 @@ class epub {
             if (!$this->noImages) {
                 foreach ($dirimg as $img) {
                     if ($this->resolution == "original") {
-                        $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                        $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
                     } else {
                         $width = $this->device[$this->resolution]['w'];
                         $height = $this->device[$this->resolution]['h'];
 
-                        if (!is_dir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized")) {
-                            mkdir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized");
+                        if (!is_dir("images/books/" . $this->SID . "/" . $this->BID . "/resized")) {
+                            mkdir("images/books/" . $this->SID . "/" . $this->BID . "/resized");
                         }
-                        if (!is_dir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'])) {
-                            mkdir("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w']);
+                        if (!is_dir("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'])) {
+                            mkdir("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w']);
                         }
 
                         try {
 
-                            $data = getimagesize("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
+                            $data = getimagesize("images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
                             $width = $data[0];
                             $height = $data[1];
 
                             if ($width < 400 || $height < 400) {
-                                $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
+                                $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/" . $img, 'OEBPS/Images/' . $img);
                             } else {
-                                if (file_exists("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img)) {
-                                    $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                                if (file_exists("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img)) {
+                                    $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
                                 } else {
-                                    $image = new Imagick("../ln/images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
+                                    $image = new Imagick("images/books/" . $this->SID . "/" . $this->BID . "/" . $img);
                                     $image->adaptiveResizeImage($this->device[$this->resolution]['h'], $this->device[$this->resolution]['w'], TRUE);
-                                    $image->writeimage("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img);
+                                    $image->writeimage("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img);
                                     $image->clear();
                                     $image->destroy();
-                                    $zip->addFile("../ln/images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
+                                    $zip->addFile("images/books/" . $this->SID . "/" . $this->BID . "/resized/" . $this->device[$this->resolution]['h'] . "x" . $this->device[$this->resolution]['w'] . "/" . $img, 'OEBPS/Images/' . $img);
                                 }
                             }
                         } catch (Exception $e) {
-                            $zip->addFile("../ln/images/books/" . $this->SID . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
+                            $zip->addFile("images/books/" . $this->SID . "/" . $BID . "/" . $img, 'OEBPS/Images/' . $img);
                         }
                     }
                 }
