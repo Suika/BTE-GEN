@@ -6,10 +6,10 @@
 
 function db_connect() {
     // Zugangsdaten für die DB
-    $dbhost = 'sql171.your-server.de';
-    $dbuser = 'mmchan_btds_w';
-    $dbpass = 'h17HeT5G';
-    $dbname = 'mmchan_btds';
+    $dbhost = '';
+    $dbuser = '';
+    $dbpass = '';
+    $dbname = '';
     // Verbindung herstellen und Verbindungskennung zurück geben
     $conid = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname) or die('Verbindungsfehler!');
 
